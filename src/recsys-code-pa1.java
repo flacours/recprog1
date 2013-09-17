@@ -3,18 +3,19 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 class NonPersRecommender {
 
-	private Map<String,Rating> _mapRatings ;
+	private List<Rating> _listRatings ;
 	private Map<String,Movie> _mapMovies;
 	private Map<String,User> _mapUsers;
 
 	NonPersRecommender() {
-		_mapRatings = new HashMap<String,Rating>();
+		_listRatings = new ArrayList<Rating>();
 		_mapMovies = new HashMap<String,Movie>();
 		_mapUsers = new HashMap<String,User>();
 	}
@@ -26,12 +27,31 @@ class NonPersRecommender {
     	rec.readMovies();
     	rec.readRatings();
     	rec.showStats();
-    	List<Result> recSimple = rec.ComputeSimple();
-    	List<Result> recAdvance = rec.ComputeAdvance();
+    	// my user ID 4118593
+    	// my movie 7443 77 120
+    	try {
+    		PrintWriter writerSimple = new PrintWriter("pa1-simple.txt","UTF-8");
+    		PrintWriter writerAdvance = new PrintWriter("pa1-advance.txt","UTF-8");
+    		for(String a : args)
+    		{
+    			System.out.println("Computing for " + a.toString());
+    			List<Result> recSimple = rec.ComputeSimple(a);
+    			List<Result> recAdvance = rec.ComputeAdvance(a);
 
-    	System.out.printf("Done");
-    	
+    			writerSimple.print(a+",");
+    			writerAdvance.print(a+",");
+
+				printResult(writerSimple, recSimple);
+				printResult(writerAdvance, recAdvance);
+    		}
+    		writerAdvance.close();
+    	} catch (Exception e) {
+    		System.out.println(e.getMessage());
+    	}
+    	System.out.println("Good bye.");
     	// Movies array contains the movie IDs of the top 5 movies.
+    	
+    	/*
 	int movies[] = new int[5];
 	
 
@@ -48,8 +68,21 @@ class NonPersRecommender {
 	} catch (Exception e) {
 	    System.out.println(e.getMessage());
 	}
-	System.out.println("Done");
+    	}
+	
+	*/
     }
+
+	private static void printResult(PrintWriter writer, List<Result> recs) {
+		int i=0;
+		for(Result r : recs){
+			writer.print(r.get_movie() + "," + r.get_score());
+			i++;
+			if(i ==5) break;
+			writer.print(",");
+		}
+		writer.print("\n");
+	}
     
     public void readMovies() {
     	String csvFile = "recsys-data-movie-titles.csv";
@@ -85,7 +118,6 @@ class NonPersRecommender {
     		}
     	}  
     }
-    
     public void readUsers() {
     	String csvFile = "recsys-data-users.csv";
     	BufferedReader br = null;
@@ -149,6 +181,9 @@ class NonPersRecommender {
     			u.Ratings.add(rating);
     			// movie keeps reference to user
     			m.get_mapUsers().put(u.UserId,u);
+    			
+    			_listRatings.add(rating);
+    			
     		}
      
     	} catch (FileNotFoundException e) {
@@ -171,21 +206,63 @@ class NonPersRecommender {
     {
     	System.out.printf("Read %d users\n", _mapUsers.size());
     	System.out.printf("Read %d movies\n", _mapMovies.size());
-    	System.out.printf("Read %d ratings\n", _mapRatings.size());
+    	System.out.printf("Read %d ratings\n", _listRatings.size());
     }
     
-    private List<Result> ComputeSimple()
+    private List<Result> ComputeSimple(String movieId)
     {
-    	return null;
-    }
-    private List<Result> ComputeAdvance()
-    {
-    	return null;
+    	ArrayList<Result> a = new ArrayList<Result>();
+//    	for(int i = 11; i < 15; i++){
+//    		Movie m = _mapMovies.get(Integer.toString(i));
+//    		Result r = new Result(m, (float)i);
+//    		a.add(r);
+//    	}
+//		Movie m = _mapMovies.get(Integer.toString(24));
+//		Result r = new Result(m, (float)24);
+//		a.add(r);
+    	
+    	for(String userId : _mapUsers.keySet()){
+    		for(String movieY : _mapMovies.keySet())
+    		{
+    			Boolean b = GetXandY(movieId, movieY, userId);
+    			int xCount = GetRatingNumber(movieId);
+    			float score = (b ? 1 : 0) / xCount;
+    			Result r = new Result(movieY, score);
+    			a.add(r);
+    		}
+    	}
+    	
+    	return a;
     }
     
-    private int GetRatingNumber(int movieId)
+    private List<Result> ComputeAdvance(String movieId)
     {
-    return 0;
+    	ArrayList<Result> a = new ArrayList<Result>();
+    	for(int i = 11; i < 15; i++){
+    		Movie m = _mapMovies.get(Integer.toString(i));
+    		Result r = new Result(m.Id, (float)i);
+    		a.add(r);
+    	}
+    	Movie m = _mapMovies.get(Integer.toString(24));
+		Result r = new Result(m.Id, (float)24);
+		a.add(r);
+    	return a;
+    }
+    
+    private int GetRatingNumber(String movieId)
+    {
+    	Movie m = _mapMovies.get(movieId);
+    	if(m == null) return 0;
+    	Map<String,User> users = m.get_mapUsers();
+    	return users != null ? users.size():0;
+    }
+    
+    private int GetNotRatingNumber(String movieId)
+    {
+    	Movie m = _mapMovies.get(movieId);
+    	if(m == null) return 0;
+    	Map<String,User> users = m.get_mapUsers();
+    	return users != null ? GetNbMovies() - users.size() : GetNbMovies();
     }
 
     private int GetNbMovies()
@@ -193,13 +270,27 @@ class NonPersRecommender {
     	return _mapMovies.size();
     }
     
-    private int GetXandY(int movieX, int movieY, int userId)
+    private Boolean GetXandY(String movieX, String movieY, String userId)
     {
-    	return 0;
+    	User uX = getUserForMovie(movieX, userId);
+    	User uY = getUserForMovie(movieX, userId);
+    	return uX != null && uY != null;
     }
+
+	private User getUserForMovie(String movieId, String userId) {
+		User u = null;
+		Movie m = _mapMovies.get(movieId);
+    	if(m != null) {
+    		Map<String,User> users = m.get_mapUsers();
+    		if(users != null) u = users.get(userId);
+    	}
+    	return u;
+	}
     
-    private int GetNotXandY(int movieX, int movieY, int userId)
+    private Boolean GetNotXandY(String movieX, String movieY, String userId)
     {
-    	return 0;
+    	User uX = getUserForMovie(movieX, userId);
+    	User uY = getUserForMovie(movieX, userId);
+    	return uX == null && uY != null;
     }
 }

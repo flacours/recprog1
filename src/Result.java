@@ -1,11 +1,11 @@
 
 public class Result {
-	private Movie _movie;
+	private String _movieId;
 	private float _score;
 	
-	public Result(Movie movie, float score){
+	public Result(String movieId, float score){
 		set_score(score);
-		set_movie(movie);
+		set_movie(movieId);
 	}
 
 
@@ -18,12 +18,12 @@ public class Result {
 	}
 
 
-	public Movie get_movie() {
-		return _movie;
+	public String get_movie() {
+		return _movieId;
 	}
 
 
-	public void set_movie(Movie _movie) {
-		this._movie = _movie;
+	public void set_movie(String _movie) {
+		this._movieId = _movie;
 	}
 }
