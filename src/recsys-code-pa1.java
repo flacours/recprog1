@@ -4,20 +4,37 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+
 
 class NonPersRecommender {
 
 	private List<Rating> _listRatings ;
 	private Map<String,Movie> _mapMovies;
 	private Map<String,User> _mapUsers;
+	private Boolean _debug = false;
+	private String _moviesFile;
+	private String _usersFile;
+	private String _ratingsFile;
 
 	NonPersRecommender() {
 		_listRatings = new ArrayList<Rating>();
 		_mapMovies = new HashMap<String,Movie>();
 		_mapUsers = new HashMap<String,User>();
+		if(_debug){
+			_moviesFile="debug-data-movies.csv";
+			_usersFile = "debug-data-users.csv";
+			_ratingsFile = "debug-data-ratings.csv";
+		}
+		else {
+			_moviesFile="recsys-data-movie-titles.csv";
+			_usersFile = "recsys-data-users.csv";
+			_ratingsFile = "recsys-data-ratings.csv";
+		}
 	}
 	
     public static void main(String[] args) {
@@ -45,6 +62,7 @@ class NonPersRecommender {
 				printResult(writerAdvance, recAdvance);
     		}
     		writerAdvance.close();
+    		writerSimple.close();
     	} catch (Exception e) {
     		System.out.println(e.getMessage());
     	}
@@ -85,7 +103,7 @@ class NonPersRecommender {
 	}
     
     public void readMovies() {
-    	String csvFile = "recsys-data-movie-titles.csv";
+    	String csvFile = _moviesFile;
     	BufferedReader br = null;
     	String line = "";
     	String cvsSplitBy = ",";
@@ -119,7 +137,7 @@ class NonPersRecommender {
     	}  
     }
     public void readUsers() {
-    	String csvFile = "recsys-data-users.csv";
+    	String csvFile = _usersFile;
     	BufferedReader br = null;
     	String line = "";
     	String cvsSplitBy = ",";
@@ -155,7 +173,7 @@ class NonPersRecommender {
     }
     public void readRatings() {
     	 
-    	String csvFile = "recsys-data-ratings.csv";
+    	String csvFile = _ratingsFile;
     	BufferedReader br = null;
     	String line = "";
     	String cvsSplitBy = ",";
@@ -209,43 +227,93 @@ class NonPersRecommender {
     	System.out.printf("Read %d ratings\n", _listRatings.size());
     }
     
+//    private List<Result> ComputeFake(String movieId)
+//    {
+//    	ArrayList<Result> a = new ArrayList<Result>();
+//    	for(int i = 11; i < 15; i++){
+//    		Movie m = _mapMovies.get(Integer.toString(i));
+//    		Result r = new Result(m.Id, (float)i);
+//    		a.add(r);
+//    	}
+//    	Movie m = _mapMovies.get(Integer.toString(24));
+//    	Result r = new Result(m.Id, (float)24);
+//    	a.add(r);
+//    	Collections.sort(a, new ResultComparator());
+//    	return a;
+//    }
+    
     private List<Result> ComputeSimple(String movieId)
     {
     	ArrayList<Result> a = new ArrayList<Result>();
-//    	for(int i = 11; i < 15; i++){
-//    		Movie m = _mapMovies.get(Integer.toString(i));
-//    		Result r = new Result(m, (float)i);
-//    		a.add(r);
-//    	}
-//		Movie m = _mapMovies.get(Integer.toString(24));
-//		Result r = new Result(m, (float)24);
-//		a.add(r);
-    	
+    	System.out.println("ComputeSimple");
+    	float completion = 0;
+    	float nb = (float)_mapUsers.size();
+    	int index = 0;
+    	Boolean first = true;
+
     	for(String userId : _mapUsers.keySet()){
+    		
     		for(String movieY : _mapMovies.keySet())
     		{
     			Boolean b = GetXandY(movieId, movieY, userId);
     			int xCount = GetRatingNumber(movieId);
-    			float score = (b ? 1 : 0) / xCount;
+    			float score = (b ? 1.0f : 0.0f) / xCount;
     			Result r = new Result(movieY, score);
     			a.add(r);
     		}
+    		completion =(int)(++index/nb*100); 
+    		if(completion%10 == 0 ) {
+    			if(first) {
+    				first = false;
+    				System.out.println(Float.toString(completion) + "%");
+    			}
+    		} else {
+    			first = true;
+    		}
     	}
-    	
+    	Collections.sort(a, new ResultComparator());
     	return a;
     }
     
     private List<Result> ComputeAdvance(String movieId)
     {
+    	System.out.println("ComputeAdvance");
     	ArrayList<Result> a = new ArrayList<Result>();
-    	for(int i = 11; i < 15; i++){
-    		Movie m = _mapMovies.get(Integer.toString(i));
-    		Result r = new Result(m.Id, (float)i);
-    		a.add(r);
+    	float completion = 0;
+    	float nb = (float)_mapUsers.size();
+    	int index = 0;
+    	Boolean first = true;
+     	for(String userId : _mapUsers.keySet()){
+    		for(String movieY : _mapMovies.keySet())
+    		{
+    			Boolean b = GetXandY(movieId, movieY, userId);
+    			int xCount = GetRatingNumber(movieId);
+    			if(xCount == 0) continue;
+    			
+    			float scoreNum = (b ? 1.0f : 0.0f) / xCount;
+    			
+    			Boolean bNot = GetNotXandY(movieId, movieY, userId);
+    			int notXCount = GetNotRatingNumber(movieId);
+    			float scoreDenum = (bNot ? 1.0f : 0.0f) / notXCount;
+    			
+    			float score = Float.MAX_VALUE;
+    			if(scoreDenum > 0.000001) score = scoreNum /scoreDenum;
+    			Result r = new Result(movieY, score);
+    			a.add(r);
+    		}
+    		completion =(int)(++index/nb*100); 
+    		if(completion%10 == 0 ) {
+    			if(first) {
+    				first = false;
+    				System.out.println(Float.toString(completion) + "%");
+    			}
+    		} else {
+    			first = true;
+    		}
     	}
-    	Movie m = _mapMovies.get(Integer.toString(24));
-		Result r = new Result(m.Id, (float)24);
-		a.add(r);
+    	
+    	
+    	Collections.sort(a, new ResultComparator());
     	return a;
     }
     
@@ -273,7 +341,7 @@ class NonPersRecommender {
     private Boolean GetXandY(String movieX, String movieY, String userId)
     {
     	User uX = getUserForMovie(movieX, userId);
-    	User uY = getUserForMovie(movieX, userId);
+    	User uY = getUserForMovie(movieY, userId);
     	return uX != null && uY != null;
     }
 
@@ -290,7 +358,7 @@ class NonPersRecommender {
     private Boolean GetNotXandY(String movieX, String movieY, String userId)
     {
     	User uX = getUserForMovie(movieX, userId);
-    	User uY = getUserForMovie(movieX, userId);
+    	User uY = getUserForMovie(movieY, userId);
     	return uX == null && uY != null;
     }
 }
