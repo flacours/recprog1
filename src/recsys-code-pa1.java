@@ -12,11 +12,13 @@ import java.util.Map;
 
 
 class NonPersRecommender {
-
+	private Boolean _debug = true;
+	private static int MAX_OUTPUT = Integer.MAX_VALUE;
+	
 	private List<Rating> _listRatings ;
 	private Map<String,Movie> _mapMovies;
 	private Map<String,User> _mapUsers;
-	private Boolean _debug = false;
+
 	private String _moviesFile;
 	private String _usersFile;
 	private String _ratingsFile;
@@ -96,7 +98,7 @@ class NonPersRecommender {
 		for(Result r : recs){
 			writer.print(r.get_movie() + "," + r.get_score());
 			i++;
-			if(i ==5) break;
+			if(i >=MAX_OUTPUT) break;
 			writer.print(",");
 		}
 		writer.print("\n");
@@ -253,14 +255,17 @@ class NonPersRecommender {
 
     	for(String userId : _mapUsers.keySet()){
     		
+    		int xCountSum = 0;
     		for(String movieY : _mapMovies.keySet())
     		{
-    			Boolean b = GetXandY(movieId, movieY, userId);
-    			int xCount = GetRatingNumber(movieId);
-    			float score = (b ? 1.0f : 0.0f) / xCount;
-    			Result r = new Result(movieY, score);
-    			a.add(r);
+    			if(GetXandY(movieId, movieY, userId))
+    				xCountSum ++;
+    			
     		}
+    		int xCount = GetRatingNumber(movieId);
+    		float score = (b ? 1.0f : 0.0f) / xCount;
+			Result r = new Result(movieY, score);
+			a.add(r);
     		completion =(int)(++index/nb*100); 
     		if(completion%10 == 0 ) {
     			if(first) {
