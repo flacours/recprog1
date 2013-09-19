@@ -3,6 +3,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -12,8 +13,8 @@ import java.util.Map;
 
 
 class NonPersRecommender {
-	private Boolean _debug = true;
-	private static int MAX_OUTPUT = Integer.MAX_VALUE;
+	private Boolean _debug = false;
+	private static int MAX_OUTPUT = 5; //Integer.MAX_VALUE;
 	
 	private List<Rating> _listRatings ;
 	private Map<String,Movie> _mapMovies;
@@ -95,14 +96,21 @@ class NonPersRecommender {
 
 	private static void printResult(PrintWriter writer, List<Result> recs) {
 		int i=0;
+		System.out.println("PrintResult");
 		for(Result r : recs){
-			writer.print(r.get_movie() + "," + r.get_score());
+			writer.print(r.get_movie() + "," + round(r.get_score(),2));
 			i++;
 			if(i >=MAX_OUTPUT) break;
 			writer.print(",");
 		}
 		writer.print("\n");
 	}
+	
+	 public static float round(float d, int decimalPlace) {
+	        BigDecimal bd = new BigDecimal(Float.toString(d));
+	        bd = bd.setScale(decimalPlace, BigDecimal.ROUND_HALF_UP);
+	        return bd.floatValue();
+	    }
     
     public void readMovies() {
     	String csvFile = _moviesFile;
@@ -248,34 +256,23 @@ class NonPersRecommender {
     {
     	ArrayList<Result> a = new ArrayList<Result>();
     	System.out.println("ComputeSimple");
-    	float completion = 0;
-    	float nb = (float)_mapUsers.size();
-    	int index = 0;
-    	Boolean first = true;
-
-    	for(String userId : _mapUsers.keySet()){
-    		
-    		int xCountSum = 0;
-    		for(String movieY : _mapMovies.keySet())
+    	for(String movieY : _mapMovies.keySet())
+    	{
+    		if(movieY.equals(movieId) == false) 
     		{
-    			if(GetXandY(movieId, movieY, userId))
-    				xCountSum ++;
-    			
-    		}
-    		int xCount = GetRatingNumber(movieId);
-    		float score = (b ? 1.0f : 0.0f) / xCount;
-			Result r = new Result(movieY, score);
-			a.add(r);
-    		completion =(int)(++index/nb*100); 
-    		if(completion%10 == 0 ) {
-    			if(first) {
-    				first = false;
-    				System.out.println(Float.toString(completion) + "%");
+    			Movie y = _mapMovies.get(movieY);
+    			Map<String,User> users = y.get_mapUsers();
+    			int xCountSum = 0;
+    			for(String userId : users.keySet()){
+    				if(GetXandY(movieId, movieY, userId)) xCountSum ++;
     			}
-    		} else {
-    			first = true;
+    			int xCount = GetRatingNumber(movieId);
+    			float score = (float)xCountSum / xCount;
+    			Result r = new Result(movieY, score);
+    			a.add(r);
     		}
     	}
+    	
     	Collections.sort(a, new ResultComparator());
     	return a;
     }
@@ -284,39 +281,43 @@ class NonPersRecommender {
     {
     	System.out.println("ComputeAdvance");
     	ArrayList<Result> a = new ArrayList<Result>();
-    	float completion = 0;
-    	float nb = (float)_mapUsers.size();
-    	int index = 0;
-    	Boolean first = true;
-     	for(String userId : _mapUsers.keySet()){
-    		for(String movieY : _mapMovies.keySet())
+    	for(String movieY : _mapMovies.keySet())
+    	{
+    		if(movieY.equals(movieId) == false) 
     		{
-    			Boolean b = GetXandY(movieId, movieY, userId);
-    			int xCount = GetRatingNumber(movieId);
-    			if(xCount == 0) continue;
-    			
-    			float scoreNum = (b ? 1.0f : 0.0f) / xCount;
-    			
-    			Boolean bNot = GetNotXandY(movieId, movieY, userId);
-    			int notXCount = GetNotRatingNumber(movieId);
-    			float scoreDenum = (bNot ? 1.0f : 0.0f) / notXCount;
-    			
-    			float score = Float.MAX_VALUE;
-    			if(scoreDenum > 0.000001) score = scoreNum /scoreDenum;
-    			Result r = new Result(movieY, score);
-    			a.add(r);
-    		}
-    		completion =(int)(++index/nb*100); 
-    		if(completion%10 == 0 ) {
-    			if(first) {
-    				first = false;
-    				System.out.println(Float.toString(completion) + "%");
+    			Movie y = _mapMovies.get(movieY);
+    			Map<String,User> users = y.get_mapUsers();
+    			int xCountSum = 0;
+    			int xNotCountSum = 0;
+    			for(String userId : users.keySet()){
+    				if(GetXandY(movieId, movieY, userId)) xCountSum ++;
+    				if( GetNotXandY(movieId, movieY, userId)) xNotCountSum++;
     			}
-    		} else {
-    			first = true;
+
+    			try
+    			{
+    				int rn = GetRatingNumber(movieId);
+    				int nrn = GetNotRatingNumber(movieId);
+    				
+    				float score = (float)xCountSum / rn;
+    				float scoreNot = (float)xNotCountSum/ nrn;
+    				score = score / scoreNot;
+    				if(score != Float.POSITIVE_INFINITY && score != Float.NEGATIVE_INFINITY){
+    				Result r = new Result(movieY, score);
+    				a.add(r);
+    				}
+    				else
+    				{
+    					System.out.println("infinity for " + movieId + " " + movieY);
+    				}
+    
+    			}
+    			catch(Exception ex)
+    			{
+    			}
     		}
     	}
-    	
+   
     	
     	Collections.sort(a, new ResultComparator());
     	return a;
@@ -335,12 +336,13 @@ class NonPersRecommender {
     	Movie m = _mapMovies.get(movieId);
     	if(m == null) return 0;
     	Map<String,User> users = m.get_mapUsers();
-    	return users != null ? GetNbMovies() - users.size() : GetNbMovies();
+    	return users != null ? GetNbUsers() - users.size() : GetNbUsers();
     }
 
-    private int GetNbMovies()
+        
+    private int GetNbUsers()
     {
-    	return _mapMovies.size();
+    	return _mapUsers.size();
     }
     
     private Boolean GetXandY(String movieX, String movieY, String userId)
